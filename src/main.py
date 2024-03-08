@@ -5,7 +5,7 @@ import motor_driver
 import encoder_reader
 import controller
 import utime
-
+from servo import Servo
 
 def task1(shares):
     """!
@@ -13,7 +13,7 @@ def task1(shares):
     @param shares A tuple of shared variables between tasks
     @returns None
     """
-    (set_point, triggered) = shares
+    (hAngle, triggered, readyForImage, vAngle) = shares
 
     state = 0
 
@@ -26,30 +26,31 @@ def task1(shares):
     tim8 = pyb.Timer(8, prescaler=1, period=65535)
     motor = motor_driver.MotorDriver(pinC1, pinA0, pinA1, tim5)
     encoder = encoder_reader.Encoder(pinC6, pinC7, tim8)
-    ctrl = controller.Controller(encoder, motor, 8000, 1/16)
+    ctrl = controller.Controller(encoder, motor, 0, 1/16)
+
+    hAngle.put(0)
+    readyForImage.put(0)
 
     while True:
         if state == 0:
-            # Init
-            state = 1
-            yield
-        elif state == 1:
             # Waiting for Trigger
             if triggered.get():
-                set_point.put(4000)
-                ctrl.set_setpoint(set_point.get())
-                state = 3
+                hAngle.put(180)
+                ctrl.setAngle(hAngle.get())
+                state = 2
+            yield
+        elif state == 1:
+            # Idle
+            if hAngle.get() != ctrl.readAngle():
+                ctrl.setAngle(hAngle.get())
+                readyForImage.put(0)
+                state = 2
             yield
         elif state == 2:
-            # Idle
-            if set_point.get() != ctrl.setpoint:
-                ctrl.set_setpoint(set_point.get())
-                state = 3
-            yield
-        elif state == 3:
             # Panning
-            if set_point.get() == ctrl.setpoint:
-                state = 2
+            if hAngle.get() == ctrl.readAngle():
+                readyForImage.put(1)
+                state = 1
             yield
         else:
             raise ValueError(f"Invalid Task 1 State: {state}")
@@ -60,31 +61,27 @@ def task2(shares):
     @param shares A tuple of shared variables between tasks
     @returns None
     """
-    (set_point, triggered) = shares
+    (hAngle, triggered, readyForImage, vAngle) = shares
 
     state = 0
 
     ser = pyb.USB_VCP()
-    pinB0 = pyb.Pin(pyb.Pin.board.PB0, pyb.Pin.IN, pull=pyb.Pin.PULL_UP)
+
+    triggered.put(0)
 
     while True:
         if state == 0:
-            # Init
-            triggered.put(0)
-            state = 1
-            yield
-        elif state == 1:
             # Waiting
             if ser.any():
                 try:
                     line = ser.readline()
-                    if line == "Begin\n":
+                    if "Begin" in line:
                         triggered.put(1)
-                        state = 2
+                        state = 1
                 except:
                     pass
             yield 
-        elif state == 2:
+        elif state == 1:
             # Triggered
             yield
         else:
@@ -96,22 +93,122 @@ def task3(shares):
     @param shares A tuple of shared variables between tasks
     @returns None
     """
-    (set_point, triggered) = shares
+    (hAngle, triggered, readyForImage, vAngle) = shares
 
     state = 0
 
-    pinA2 = pyb.Pin(pyb.Pin.board.PA2, pyb.Pin.OUT_PP)
+    pinA10 = pyb.Pin(pyb.Pin.board.PA10, pyb.Pin.OUT_PP)
+    timer1 = pyb.Timer(1, freq=50)
+    t1ch3 = timer1.channel(3, pyb.board.PWM, pin=pinA10)
+    vServo = Servo(t1ch3, angle=45)
+
+    vAngle.put(45)
 
     while True:
         if state == 0:
-            # Init
-            state = 1
+            # Waiting for Trigger
+            if triggered.get():
+                state = 1
             yield
         elif state == 1:
-            # Idle
-            yield 
-        elif state == 2:
-            # Turning
+            # Normal Operation
+            if vAngle.get() != vServo.read():
+                vServo.write(vAngle.get())
             yield
         else:
             raise ValueError(f"Invalid Task 3 State: {state}")
+
+def task4(shares):
+    """!
+    This task handles taking images and setting angles
+    @param shares A tuple of shared variables between tasks
+    @returns None
+    """
+    (hAngle, triggered, readyForImage, vAngle, fire) = shares
+
+    state = 0
+
+    pinB8 = pyb.Pin(pyb.Pin.board.PB8, pyb.Pin.ALT, alt=4)
+    pinB9 = pyb.Pin(pyb.Pin.board.PB9, pyb.Pin.ALT, alt=4)
+    i2c = pyb.I2C(1, pyb.I2C.CONTROLLER, baudrate=100000)
+
+    while True:
+        if state == 0:
+            state = 1
+            yield
+        elif state == 1:
+            if readyForImage.get():
+                state = 2
+            yield
+        elif state == 2:
+            yield
+        else:
+            raise ValueError(f"Invalid Task 4 State: {state}")
+
+def task5(shares):
+    """!
+    This task handles actutating the trigger
+    @param shares A tuple of shared variables between tasks
+    @returns None
+    """
+    (hAngle, triggered, readyForImage, vAngle, fire) = shares
+
+    state = 0
+
+    pinA8 = pyb.Pin(pyb.Pin.board.PA8, pyb.Pin.OUT_PP)
+    t1ch1 = timer1.channel(1, pyb.board.PWM, pin=pinA8)
+    aServo = Servo(t1ch1, angle=0)
+
+    fire.put(0)
+
+    counter = 0
+
+    while True:
+        if state == 0:
+            # Waiting for Trigger
+            if triggered.get():
+                state = 1
+            yield
+        elif state == 1:
+            # Wait for Fire
+            if fire.get():
+                aServo.write(90)
+                fire.put(0)
+                state = 2
+            yield
+        elif state == 2:
+            # Delay and reset
+            if counter > 50:
+                aServo.write(0)
+                counter = 0
+                state = 1
+            else:
+                counter += 1
+        else:
+            raise ValueError(f"Invalid Task 5 State: {state}")
+
+
+if __name__ == "__main__":
+    shareList = [
+        task_share.Share("i", name="hAngle"),
+        task_share.Share("b", name="Triggered"),
+        task_share.Share("b", name="ReadyForImage"),
+        task_share.Share("i", name="vAngle"),
+        task_share.Share("b", name="Fire")
+    ]
+
+    shareList[1].put(0)
+    
+    tasks = [
+        cotask.Task(task1, name="Task 1", priority=0, period=500, shares=shareList),
+        cotask.Task(task2, name="Task 2", priority=1, period=500, shares=shareList),
+        cotask.Task(task3, name="Task 3", priority=0, period=500, shares=shareList),
+        cotask.Task(task4, name="Task 4", priority=0, period=500, shares=shareList),
+        cotask.Task(task5, name="Task 5", priority=0, period=500, shares=shareList),
+    ]
+
+    for task in tasks:
+        cotask.task_list.append(task)
+
+    while True:
+        cotask.task_list.pri_sched()

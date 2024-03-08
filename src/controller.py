@@ -45,6 +45,12 @@ class Controller:
         @returns None
         """
         self.setpoint = setpoint
+
+    def setAngle(self, angle):
+        self.setpoint = angle * 8000 / 360
+
+    def readAngle(self):
+        return self.encoder.read() * 360 // 8000
         
     def set_kp(self, kp):
         """!
