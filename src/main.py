@@ -64,6 +64,7 @@ def task2(shares):
 
     state = 0
 
+    ser = pyb.USB_VCP()
     pinB0 = pyb.Pin(pyb.Pin.board.PB0, pyb.Pin.IN, pull=pyb.Pin.PULL_UP)
 
     while True:
@@ -74,9 +75,14 @@ def task2(shares):
             yield
         elif state == 1:
             # Waiting
-            if not pinB0.read():
-                triggered.put(1)
-                state = 2
+            if ser.any():
+                try:
+                    line = ser.readline()
+                    if line == "Begin\n":
+                        triggered.put(1)
+                        state = 2
+                except:
+                    pass
             yield 
         elif state == 2:
             # Triggered
