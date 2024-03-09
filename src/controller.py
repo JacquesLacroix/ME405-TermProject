@@ -10,7 +10,7 @@ class Controller:
     """!
     This class implements a proportional gain controller for a DC motor with quadrature encoder
     """
-    def __init__(self, encoder, motor, setpoint, kp):
+    def __init__(self, encoder, motor, setpoint, kp, ticks=8000):
         """!
         Create a DC motor controller object with proportional gain from quadrature encoder feedback
         @param encoder The encoder object used to measure position
@@ -25,6 +25,7 @@ class Controller:
         self.set_kp(kp)
         self.times = []
         self.positions = []
+        self.ticks = ticks
         
     def run(self):
         """!
@@ -47,10 +48,10 @@ class Controller:
         self.setpoint = setpoint
 
     def setAngle(self, angle):
-        self.setpoint = angle * 8000 / 360
+        self.setpoint = self.angleToTicks(angle)
 
     def readAngle(self):
-        return self.encoder.read() * 360 // 8000
+        return self.ticksToAngle(self.encoder.read())
         
     def set_kp(self, kp):
         """!
@@ -71,6 +72,12 @@ class Controller:
             yield
         self.times = []
         self.positions = []
+
+    def angleToTicks(angle):
+        return angle * self.ticks / 360
+
+    def ticksToAngle(ticks):
+       return ticks * 360 // self.ticks
     
 if __name__ == "__main__":
     
