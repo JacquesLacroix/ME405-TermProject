@@ -1,10 +1,10 @@
 import pyb
 import cotask
 import task_share
-import motor_driver
-import encoder_reader
-import controller
 import utime
+from motor_driver import MotorDriver
+from encoder_reader import Encoder
+from controller import Controller
 from servo import Servo
 from mlx_cam import MLX_Cam
 
@@ -14,7 +14,7 @@ def task1(shares):
     @param shares A tuple of shared variables between tasks
     @returns None
     """
-    (hAngle, triggered, readyForImage, vAngle, fire) = shares
+    (hAngle, start, readyForImage, vAngle, fire) = shares
 
     state = 0
 
@@ -22,22 +22,22 @@ def task1(shares):
     readyForImage.put(0)
 
     pinC1 = pyb.Pin(pyb.Pin.board.PC1, pyb.Pin.OUT_PP)
-    pinA0 = pyb.Pin(pyb.Pin.board.PA0, pyb.Pin.OUT_PP) 
+    pinA0 = pyb.Pin(pyb.Pin.board.PA0, pyb.Pin.OUT_PP)
     pinA1 = pyb.Pin(pyb.Pin.board.PA1, pyb.Pin.OUT_PP)
     pinC6 = pyb.Pin(pyb.Pin.board.PC6, pyb.Pin.OUT_PP) 
     pinC7 = pyb.Pin(pyb.Pin.board.PC7, pyb.Pin.OUT_PP)
     tim5 = pyb.Timer(5, freq=20000)
     tim8 = pyb.Timer(8, prescaler=1, period=65535)
-    motor = motor_driver.MotorDriver(pinC1, pinA0, pinA1, tim5)
-    encoder = encoder_reader.Encoder(pinC6, pinC7, tim8)
-    ctrl = controller.Controller(encoder, motor, ctrl.angleToTicks(hAngle.get()), 0.4, 8000)
+    motor = MotorDriver(pinC1, pinA0, pinA1, tim5)
+    encoder = Encoder(pinC6, pinC7, tim8)
+    ctrl = Controller(encoder, motor, ctrl.angleToTicks(hAngle.get()), 0.4, 8000)
 
     yield
 
     while True:
         if state == 0:
-            # Waiting for Trigger
-            if triggered.get():
+            # Waiting for start
+            if start.get():
                 hAngle.put(180)
                 ctrl.setAngle(hAngle.get())
                 state = 2
@@ -51,6 +51,7 @@ def task1(shares):
             yield
         elif state == 2:
             # Panning
+            ctrl.run()
             if hAngle.get() == ctrl.readAngle():
                 readyForImage.put(1)
                 state = 1
@@ -60,13 +61,13 @@ def task1(shares):
 
 def task2(shares):
     """!
-    This task handles the start trigger button
+    This task handles the start button
     @param shares A tuple of shared variables between tasks
     @returns None
     """
-    (hAngle, triggered, readyForImage, vAngle, fire) = shares
+    (hAngle, start, readyForImage, vAngle, fire) = shares
 
-    triggered.put(0)
+    start.put(0)
 
     state = 0
 
@@ -81,13 +82,13 @@ def task2(shares):
                 try:
                     line = ser.readline()
                     if "Begin" in line:
-                        triggered.put(1)
+                        start.put(1)
                         state = 1
                 except:
                     pass
             yield 
         elif state == 1:
-            # Triggered
+            # Start
             yield
         else:
             raise ValueError(f"Invalid Task 2 State: {state}")
@@ -98,7 +99,7 @@ def task3(shares):
     @param shares A tuple of shared variables between tasks
     @returns None
     """
-    (hAngle, triggered, readyForImage, vAngle, fire) = shares
+    (hAngle, start, readyForImage, vAngle, fire) = shares
 
     state = 0
 
@@ -113,8 +114,8 @@ def task3(shares):
 
     while True:
         if state == 0:
-            # Waiting for Trigger
-            if triggered.get():
+            # Waiting for start
+            if start.get():
                 state = 1
             yield
         elif state == 1:
@@ -131,14 +132,14 @@ def task4(shares):
     @param shares A tuple of shared variables between tasks
     @returns None
     """
-    (hAngle, triggered, readyForImage, vAngle, fire) = shares
+    (hAngle, start, readyForImage, vAngle, fire) = shares
 
-    state = 0
+    fire.put(0)
 
     pinB8 = pyb.Pin(pyb.Pin.board.PB8, pyb.Pin.ALT, alt=4)
     pinB9 = pyb.Pin(pyb.Pin.board.PB9, pyb.Pin.ALT, alt=4)
     i2c = pyb.I2C(1, pyb.I2C.CONTROLLER, baudrate=100000)
-    camera = MLX_Cam(i2c, )
+    camera = MLX_Cam(i2c)
     image = None
     arrayImage = []
     vMax = 0
@@ -147,31 +148,24 @@ def task4(shares):
     yield
 
     while True:
-        if state == 0:
-            state = 1
-            yield
-        elif state == 1:
-            # Waiting for image
-            if readyForImage.get():
-                while not image:
-                    image = camera.get_image_nonblocking()
-                    yield
-                for line in camera.get_csv(image):
-                    arrayImage.append(line.split(","))
-                    yield
-                state = 2
-            yield
-        elif state == 2:
-            # Process image
+        if readyForImage.get():
+            while not image:
+                image = camera.get_image_nonblocking()
+                yield
+            for line in camera.get_csv(image):
+                arrayImage.append(line.split(","))
+                yield
+
+            # Apply blur here
+
             for (vIdx, line) in enumerate(arrayImage):
                 for (hIdx, pixel) in enumerate(line):
                     if pixel > arrayImage[vMax][hMax]:
                         vMax = vIdx
                         hMax = hIdx
                 yield
-            # Map 0->31 => -16->15
+
             hNew = hAngle.get() + hIdx - 16
-            # Map 0->23 => 0->23
             vNew = vIdx
 
             if hNew == hAngle.get() and vNew == vAngle.get():
@@ -179,10 +173,12 @@ def task4(shares):
             else:
                 hAngle.put(hNew)
                 vAngle.put(vNew)
-            state = 1
+            
+            image = None
+            arrayImage = []
+            vMax = 0
+            hMax = 0
             yield
-        else:
-            raise ValueError(f"Invalid Task 4 State: {state}")
 
 def task5(shares):
     """!
@@ -190,9 +186,7 @@ def task5(shares):
     @param shares A tuple of shared variables between tasks
     @returns None
     """
-    (hAngle, triggered, readyForImage, vAngle, fire) = shares
-
-    fire.put(0)
+    (hAngle, start, readyForImage, vAngle, fire) = shares
 
     state = 0
 
@@ -202,10 +196,12 @@ def task5(shares):
 
     counter = 0
 
+    yield
+
     while True:
         if state == 0:
             # Waiting for Trigger
-            if triggered.get():
+            if start.get():
                 state = 1
             yield
         elif state == 1:
@@ -217,7 +213,7 @@ def task5(shares):
             yield
         elif state == 2:
             # Delay and reset
-            if counter > 50:
+            if counter > 10:
                 aServo.write(0)
                 counter = 0
                 state = 1
@@ -229,18 +225,18 @@ def task5(shares):
 if __name__ == "__main__":
     shareList = [
         task_share.Share("i", name="hAngle"),
-        task_share.Share("b", name="Triggered"),
+        task_share.Share("b", name="start"),
         task_share.Share("b", name="ReadyForImage"),
         task_share.Share("i", name="vAngle"),
         task_share.Share("b", name="Fire")
     ]
     
     tasks = [
-        cotask.Task(task1, name="Task 1", priority=0, period=500, shares=shareList),
-        cotask.Task(task2, name="Task 2", priority=1, period=500, shares=shareList),
-        cotask.Task(task3, name="Task 3", priority=0, period=500, shares=shareList),
-        cotask.Task(task4, name="Task 4", priority=0, period=500, shares=shareList),
-        cotask.Task(task5, name="Task 5", priority=0, period=500, shares=shareList),
+        cotask.Task(task1, name="Task 1", priority=2, period=30, shares=shareList),
+        cotask.Task(task2, name="Task 2", priority=1, period=200, shares=shareList),
+        cotask.Task(task3, name="Task 3", priority=0, period=100, shares=shareList),
+        cotask.Task(task4, name="Task 4", priority=0, period=100, shares=shareList),
+        cotask.Task(task5, name="Task 5", priority=0, period=100, shares=shareList),
     ]
 
     for task in tasks:
