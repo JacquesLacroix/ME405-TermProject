@@ -30,7 +30,7 @@ def task1(shares):
     tim8 = pyb.Timer(8, prescaler=1, period=65535)
     motor = MotorDriver(pinC1, pinA0, pinA1, tim5)
     encoder = Encoder(pinC6, pinC7, tim8)
-    ctrl = Controller(encoder, motor, ctrl.angleToTicks(hAngle.get()), 0.4, 8000)
+    ctrl = Controller(encoder, motor, Controller.angleToTicks(hAngle.get()), 0.4, 8000, 4)
 
     yield
 
