@@ -17,6 +17,10 @@ class Controller:
         @param motor The motor driver used to send signals to the motor
         @param setpoint The target position for the motor to turn to
         @param kp The proportional gain coefficient for the controller to use
+        @param ticks The number of encoder ticks corresponding to 1 full rotation
+        @param gearRatio The gear speed reduction ratio, allowing for angles to be set on the output shaft (Output Gear Teeth/Motor Pinion Teeth).
+        A positive ratio should be used for odd numbers of gears, and a negative ratio should be used for even numbers of gears to ensure the output
+        shaft rotates in the desired direction. The ratio should be negated if the motor is mounted upside-down relative to the output shaft.
         @returns Controller
         """
         self.encoder = encoder
@@ -49,10 +53,19 @@ class Controller:
         self.setpoint = setpoint
 
     def setAngle(self, angle):
-        self.setpoint = self.angleToTicks(angle * self.gearRatio)
+        """!
+        Allows the user to input a desired angle on the output shaft
+        @param angle The desired output shaft angle
+        @returns None
+        """
+        self.setpoint = self.angleToTicks(angle)
 
     def readAngle(self):
-        return self.ticksToAngle(self.encoder.read() // self.gearRatio)
+        """!
+        Allows the user to read the current angle of the output shaft
+        @returns int
+        """
+        return self.ticksToAngle(self.encoder.read())
         
     def set_kp(self, kp):
         """!
@@ -74,11 +87,21 @@ class Controller:
         self.times = []
         self.positions = []
 
-    def angleToTicks(angle):
-        return angle * self.ticks / 360
+    def angleToTicks(self, angle):
+        """!
+        Converts a specified angle into a encoder ticks
+        @param angle The angle to be converted
+        @returns int
+        """
+        return angle * self.ticks * self.gearRatio / 360
 
-    def ticksToAngle(ticks):
-       return ticks * 360 // self.ticks
+    def ticksToAngle(self, ticks):
+        """!
+        Converts a specified number of encoder ticks into an angle
+        @param ticks The number of ticks to be converted
+        @returns int
+        """
+        return ticks * 360 // (self.ticks * self.gearRatio)
     
 if __name__ == "__main__":
     
