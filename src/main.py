@@ -77,6 +77,8 @@ def task2(shares):
 
     ser = pyb.USB_VCP()
 
+    counter = 0
+
     yield
 
     while True:
@@ -86,8 +88,13 @@ def task2(shares):
                 try:
                     line = ser.readline()
                     if "Begin" in line:
-                        start.put(1)
-                        state = 1
+                        if counter > 25:
+                            start.put(1)
+                            state = 1
+                            counter = 0
+                            yield
+                        else:
+                            counter += 1
                 except:
                     pass
             yield 
