@@ -49,12 +49,13 @@ def task1(shares):
                 readyForImage.put(0)
                 state = 2
             if not start.get():
+                readyForImage.put(0)
                 state = 0
             yield
         elif state == 2:
             # Panning
             ctrl.run()
-            if hAngle.get() == ctrl.readAngle():
+            if hAngle.get() == ctrl.readAngle(): # May need to change this
                 readyForImage.put(1)
                 state = 1
             yield
@@ -93,6 +94,7 @@ def task2(shares):
         elif state == 1:
             # Start
             if not start.get():
+                ser.flush()
                 state = 0
             yield
         else:
@@ -141,6 +143,8 @@ def task4(shares):
     """
     (hAngle, start, readyForImage, vAngle, fire) = shares
 
+    state = 0
+
     fire.put(0)
 
     pinB8 = pyb.Pin(pyb.Pin.board.PB8, pyb.Pin.ALT, alt=4)
@@ -155,37 +159,49 @@ def task4(shares):
     yield
 
     while True:
-        if readyForImage.get():
-            while not image:
-                image = camera.get_image_nonblocking()
-                yield
-            for line in camera.get_csv(image):
-                arrayImage.append(line.split(","))
-                yield
-
-            # Apply blur here
-
-            for (vIdx, line) in enumerate(arrayImage):
-                for (hIdx, pixel) in enumerate(line):
-                    if pixel > arrayImage[vMax][hMax]:
-                        vMax = vIdx
-                        hMax = hIdx
-                yield
-
-            hNew = hAngle.get() + hIdx - 16
-            vNew = vIdx
-
-            if hNew == hAngle.get() and vNew == vAngle.get():
-                fire.put(1)
-            else:
-                hAngle.put(hNew)
-                vAngle.put(vNew)
-            
-            image = None
-            arrayImage = []
-            vMax = 0
-            hMax = 0
+        if state == 0:
+            # Waiting for start
+            if start.get():
+                state = 1
             yield
+        elif state == 1:
+            # Normal Operation
+            if readyForImage.get():
+                while not image:
+                    image = camera.get_image_nonblocking()
+                    yield
+                for line in camera.get_csv(image):
+                    arrayImage.append(line.split(","))
+                    yield
+
+                # Apply blur here
+
+                for (vIdx, line) in enumerate(arrayImage):
+                    for (hIdx, pixel) in enumerate(line):
+                        try:
+                            if float(pixel) > float(arrayImage[vMax][hMax]):
+                                vMax = vIdx
+                                hMax = hIdx
+                        except:
+                            raise ValueError("Camera returned non-number data")
+                    yield
+
+                hNew = hAngle.get() + hMax - 12 # Needs to be calibrated
+                vNew = max(vMax, 16) + 29 # Needs to be calibrated
+
+                if hNew == hAngle.get() and vNew == vAngle.get():
+                    fire.put(1)
+                else:
+                    hAngle.put(hNew)
+                    vAngle.put(vNew)
+                
+                image = None
+                arrayImage = []
+                vMax = 0
+                hMax = 0
+            yield
+        else:
+           raise ValueError(f"Invalid Task 4 State: {state}") 
 
 def task5(shares):
     """!
@@ -207,7 +223,7 @@ def task5(shares):
 
     while True:
         if state == 0:
-            # Waiting for Trigger
+            # Waiting for start
             if start.get():
                 state = 1
             yield
