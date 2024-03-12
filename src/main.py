@@ -48,6 +48,8 @@ def task1(shares):
                 ctrl.setAngle(hAngle.get())
                 readyForImage.put(0)
                 state = 2
+            if not start.get():
+                state = 0
             yield
         elif state == 2:
             # Panning
@@ -60,6 +62,7 @@ def task1(shares):
             raise ValueError(f"Invalid Task 1 State: {state}")
 
 def task2(shares):
+
     """!
     This task handles the start button
     @param shares A tuple of shared variables between tasks
@@ -89,6 +92,8 @@ def task2(shares):
             yield 
         elif state == 1:
             # Start
+            if not start.get():
+                state = 0
             yield
         else:
             raise ValueError(f"Invalid Task 2 State: {state}")
@@ -108,7 +113,7 @@ def task3(shares):
     pinA10 = pyb.Pin(pyb.Pin.board.PA10, pyb.Pin.OUT_PP)
     timer1 = pyb.Timer(1, freq=50)
     t1ch3 = timer1.channel(3, pyb.board.PWM, pin=pinA10)
-    vServo = Servo(t1ch3, angle=vAngle.get())
+    vServo = Servo(t1ch3, angle=vAngle.get(), minAngle=45, maxAngle=60)
 
     yield
 
@@ -122,6 +127,8 @@ def task3(shares):
             # Normal Operation
             if vAngle.get() != vServo.read():
                 vServo.write(vAngle.get())
+            if not start.get():
+                state = 0
             yield
         else:
             raise ValueError(f"Invalid Task 3 State: {state}")
@@ -216,7 +223,11 @@ def task5(shares):
             if counter > 10:
                 aServo.write(0)
                 counter = 0
-                state = 1
+                start.put(0)
+                hAngle.put(0)
+                vAngle.put(45)
+                readyForImage.put(0)
+                state = 0
             else:
                 counter += 1
         else:
