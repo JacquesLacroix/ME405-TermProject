@@ -38,7 +38,7 @@ def task1(shares):
         if state == 0:
             # Waiting for start
             if start.get():
-                hAngle.put(180)
+                hAngle.put(-180)
                 ctrl.setAngle(hAngle.get())
                 state = 2
             yield
