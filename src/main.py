@@ -38,26 +38,26 @@ def task1(shares):
     
     encoder = Encoder(pinC6, pinC7, tim8)
     
-    ctrl = Controller(encoder, motor, 0, 0.006, 0, 0.00025, 8000, float(96)/float(30))
+    ctrl = Controller(encoder, motor, 0, kp=0.06, ki=0, kd=0.0002, ticks=8000, gearRatio=float(96)/float(30))
     
     closeEnough = const(3)
 
     yield
 
     while True:
-        print(state)
+        #print(state)
         if state == 0:
             # Waiting for start
             if start.get():
+                ctrl.set_kp(0.06)
+                ctrl.set_kd(0.0002)
                 hAngle.put(-180)
                 ctrl.setAngle(hAngle.get())
                 state = 2
             yield
         elif state == 1:
             # Idle
-            ctrl.set_kp(0.0005)
-            ctrl.set_ki(0.0002)
-            if abs(hAngle.get() - ctrl.readAngle()) > 3:
+            if abs(hAngle.get() - ctrl.readAngle()) > closeEnough:      
                 ctrl.setAngle(hAngle.get())
                 readyForImage.put(0)
                 state = 2
@@ -67,10 +67,14 @@ def task1(shares):
             yield
         elif state == 2:
             # Panning
-            
-            print(ctrl.run())
-
+            ctrl.run()
             if abs(hAngle.get() - ctrl.readAngle()) <= closeEnough: # May need to change this
+                print("AAAAAAAAAAAAAAAAAAAAA")
+                for i in range(3):
+                    ctrl.run()
+                ctrl.motor.set_duty_cycle(0)
+                ctrl.set_kp(0.2)
+                ctrl.set_kd(0.01)
                 if start.get():
                     readyForImage.put(1)
                     state = 1
@@ -190,10 +194,10 @@ def task4(shares):
     vMax = 0
     hMax = 0
     
-    hOffset = const(-12)
-    vOffset = const(30)
-    hScale = const(1)
-    vScale = const(0.5)
+    hOffset = const(-10)
+    vOffset = const(-16)
+    hScale = const(0.95)
+    vScale = const(1)
 
     yield
 
@@ -214,8 +218,10 @@ def task4(shares):
                     yield
 
                 # Apply blur here
-
+                #camera.ascii_art(image)
                 for (hIdx, line) in enumerate(arrayImage):
+                    if hIdx < 4:
+                        continue
                     for (vIdx, pixel) in enumerate(line):
                         try:
                             if float(pixel) > float(arrayImage[hMax][vMax]):
@@ -225,8 +231,8 @@ def task4(shares):
                             raise ValueError("Camera returned non-number data")
                     yield
                 
-                hNew = hAngle.get() + hScale*hMax + hOffset
-                vNew = max(vScale*vMax, 15) + vOffset
+                hNew = int(hAngle.get() + hScale*(hMax + hOffset))
+                vNew = int(vScale*(max(vMax, 16) + vOffset) + 43)
                 
                 print("-------Next--------")
                 print("Maximum Heat Signature:")
@@ -239,12 +245,12 @@ def task4(shares):
                 print(hNew)
                 print(vNew)
                 
-                if abs(hNew - hAngle.get()) <= 3 and abs(vNew - vAngle.get()) <= 3:
+                if abs(hNew - hAngle.get()) <= 1 and abs(vNew - vAngle.get()) <= 1:
                     fire.put(1)
                     print("Fire!")
                 else:
-                    hAngle.put(floor(hNew))
-                    vAngle.put(floor(vNew))
+                    hAngle.put(hNew)
+                    vAngle.put(vNew)
                 image = None
                 arrayImage = []
                 vMax = 0
@@ -269,7 +275,7 @@ def task5(shares):
     pinA9 = pyb.Pin(pyb.Pin.board.PA9, pyb.Pin.OUT_PP)
     timer1 = pyb.Timer(1, freq=50)
     t1ch2 = timer1.channel(2, pyb.Timer.PWM, pin=pinA9)
-    aServo = Servo(t1ch2, angle=30)
+    aServo = Servo(t1ch2, angle=30, maxAngle=120)
 
     counter = 0
 
@@ -288,7 +294,7 @@ def task5(shares):
                 counter += 1
             else:
                 if fire.get():
-                    aServo.write(90)
+                    aServo.write(120)
                     fire.put(0)
                     state = 2
             yield

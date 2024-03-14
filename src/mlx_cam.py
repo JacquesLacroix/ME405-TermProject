@@ -288,7 +288,42 @@ def test_MLX_cam():
                 camera.ascii_art(image)
             gc.collect()
             print(f"Memory: {gc.mem_free()} B free")
-            time.sleep_ms(3141)
+            #time.sleep_ms(3141)
+            arrayImage = []
+            hOffset = const(-10)
+            vOffset = const(-16)
+            hScale = const(1.2)
+            vScale = const(1.5)
+            hMax = 0
+            vMax = 0
+            for line in camera.get_csv(image):
+                arrayImage.append(line.split(","))
+
+            # Apply blur here
+            #camera.ascii_art(image)
+            for (hIdx, line) in enumerate(arrayImage):
+                for (vIdx, pixel) in enumerate(line):
+                    try:
+                        if float(pixel) > float(arrayImage[hMax][vMax]):
+                            vMax = vIdx
+                            hMax = hIdx
+                    except:
+                        raise ValueError("Camera returned non-number data")
+            
+            hNew = int(0 + hScale*(hMax + hOffset))
+            vNew = int(vScale*(max(vMax, 16) + vOffset) + 40)
+            
+            print("-------Next--------")
+            print("Maximum Heat Signature:")
+            print(hMax)
+            print(vMax)
+            print("Pointing at:")
+            print(0)
+            print(0)
+            print("Where to go:")
+            print(hNew)
+            print(vNew)
+            time.sleep(3)
 
         except KeyboardInterrupt:
             break
