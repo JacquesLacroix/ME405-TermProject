@@ -38,7 +38,9 @@ def task1(shares):
     
     encoder = Encoder(pinC6, pinC7, tim8)
     
-    ctrl = Controller(encoder, motor, 0, 0.04, 0, 0, 8000, float(96)/float(30))
+    ctrl = Controller(encoder, motor, 0, 0.006, 0, 0.00025, 8000, float(96)/float(30))
+    
+    closeEnough = const(3)
 
     yield
 
@@ -68,8 +70,7 @@ def task1(shares):
             
             print(ctrl.run())
 
-            if abs(hAngle.get() - ctrl.readAngle()) <= 3: # May need to change this
-                print("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
+            if abs(hAngle.get() - ctrl.readAngle()) <= closeEnough: # May need to change this
                 if start.get():
                     readyForImage.put(1)
                     state = 1
@@ -188,6 +189,11 @@ def task4(shares):
     arrayImage = []
     vMax = 0
     hMax = 0
+    
+    hOffset = const(-12)
+    vOffset = const(30)
+    hScale = const(1)
+    vScale = const(0.5)
 
     yield
 
@@ -209,18 +215,18 @@ def task4(shares):
 
                 # Apply blur here
 
-                for (vIdx, line) in enumerate(arrayImage):
-                    for (hIdx, pixel) in enumerate(line):
+                for (hIdx, line) in enumerate(arrayImage):
+                    for (vIdx, pixel) in enumerate(line):
                         try:
-                            if float(pixel) > float(arrayImage[vMax][hMax]):
+                            if float(pixel) > float(arrayImage[hMax][vMax]):
                                 vMax = vIdx
                                 hMax = hIdx
                         except:
                             raise ValueError("Camera returned non-number data")
                     yield
                 
-                hNew = hAngle.get() + hMax - 8 # Needs to be calibrated
-                vNew = max(2*vMax, 16) + 29 # Needs to be calibrated
+                hNew = hAngle.get() + hScale*hMax + hOffset
+                vNew = max(vScale*vMax, 15) + vOffset
                 
                 print("-------Next--------")
                 print("Maximum Heat Signature:")
@@ -237,8 +243,8 @@ def task4(shares):
                     fire.put(1)
                     print("Fire!")
                 else:
-                    hAngle.put(hNew)
-                    vAngle.put(vNew)
+                    hAngle.put(floor(hNew))
+                    vAngle.put(floor(vNew))
                 image = None
                 arrayImage = []
                 vMax = 0
@@ -278,7 +284,7 @@ def task5(shares):
             yield
         elif state == 1:
             # Wait for Fire
-            if counter < 5:
+            if counter < 25:
                 counter += 1
             else:
                 if fire.get():

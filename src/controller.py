@@ -42,9 +42,8 @@ class Controller:
         position = self.encoder.read()
         self.error = self.setpoint - position
         PWM = self.kp*self.error + self.ki*self.eSum - self.kd*self.last
-        if not self.ki == 0:
-            self.eSum += self.error
-        self.last = self.error
+        # self.eSum += self.error
+        self.last = PWM
         self.motor.set_duty_cycle(PWM)
         return PWM
     
