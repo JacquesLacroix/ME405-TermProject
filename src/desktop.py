@@ -5,6 +5,8 @@ def run():
         while True:
             input("Press Enter to engage gun: ")
             ser.write("Begin\n".encode())
+        
+            ser.flush()
 
 if __name__ == "__main__":
     run()

@@ -9,7 +9,7 @@ class Servo:
 
     def write(self, angle):
         self.angle = angle
-        self.channel.pulse_width_percent(2.5 + 5*max(self.minAngle, min(angle, self.maxAngle)))
+        self.channel.pulse_width_percent(2.5 + 5*max(self.minAngle, min(angle, self.maxAngle))/90)
 
     def read(self):
         return self.angle

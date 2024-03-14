@@ -25,7 +25,9 @@ class MotorDriver:
         
         self.ENA = en_pin
         self.ch1 = timer.channel(1, pyb.Timer.PWM, pin=in1pin)
+        self.ch1.pulse_width_percent(0)
         self.ch2 = timer.channel(2, pyb.Timer.PWM, pin=in2pin)
+        self.ch2.pulse_width_percent(0)
 
     def set_duty_cycle (self, level):
         """!

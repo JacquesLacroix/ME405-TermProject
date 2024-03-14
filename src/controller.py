@@ -10,7 +10,7 @@ class Controller:
     """!
     This class implements a proportional gain controller for a DC motor with quadrature encoder
     """
-    def __init__(self, encoder, motor, setpoint, kp, ticks=8000, gearRatio=1):
+    def __init__(self, encoder, motor, setpoint, kp, ki, kd, ticks=8000, gearRatio=1):
         """!
         Create a DC motor controller object with proportional gain from quadrature encoder feedback
         @param encoder The encoder object used to measure position
@@ -27,10 +27,12 @@ class Controller:
         self.motor = motor
         self.set_setpoint(setpoint)
         self.set_kp(kp)
-        self.times = []
-        self.positions = []
+        self.set_ki(ki)
+        self.set_kd(kd)
         self.ticks = ticks
         self.gearRatio = gearRatio
+        self.eSum = 0
+        self.last = 0
         
     def run(self):
         """!
@@ -38,10 +40,12 @@ class Controller:
         @returns None
         """
         position = self.encoder.read()
-        PWM = self.kp*(self.setpoint - position)
+        self.error = self.setpoint - position
+        PWM = self.kp*self.error + self.ki*self.eSum - self.kd*self.last
+        if not self.ki == 0:
+            self.eSum += self.error
+        self.last = self.error
         self.motor.set_duty_cycle(PWM)
-        self.positions.append(position) 
-        self.times.append(utime.ticks_ms())
         return PWM
     
     def set_setpoint(self, setpoint):
@@ -75,17 +79,11 @@ class Controller:
         """
         self.kp = kp
         
-    def print_list(self, task, start):
-        """!
-        Prints and clears all time and position pairs logged
-        @param start Time in milliseconds at which the response test began
-        @returns None
-        """
-        for i in range(len(self.times)):
-            print(f"{task}, {(self.times[i] - start):d}, {self.positions[i]:d}")
-            yield
-        self.times = []
-        self.positions = []
+    def set_ki(self, ki):
+        self.ki = ki
+        
+    def set_kd(self, kd):
+        self.kd = kd
 
     def angleToTicks(self, angle):
         """!

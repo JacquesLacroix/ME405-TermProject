@@ -44,7 +44,6 @@ class MLX_Cam:
     #           the pixels at a time (default ChessPattern)
     #  @param   width The width of the image in pixels; leave it at default
     #  @param   height The height of the image in pixels; leave it at default
-    
     def __init__(self, i2c, address=0x33, pattern=ChessPattern,
                  width=NUM_COLS, height=NUM_ROWS):
 
@@ -101,7 +100,6 @@ class MLX_Cam:
     #           image has been finished, as a string "<r>;<g>;<b>" with each
     #           letter representing the intensity of red, green, and blue from
     #           0 to 255
-    
     def ascii_image(self, array, pixel="██", textcolor="0;180;0"):
 
         minny = min(array)

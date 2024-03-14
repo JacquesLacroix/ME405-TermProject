@@ -7,6 +7,8 @@ from encoder_reader import Encoder
 from controller import Controller
 from servo import Servo
 from mlx_cam import MLX_Cam
+from machine import I2C
+import gc
 
 def task1(shares):
     """!
@@ -20,21 +22,28 @@ def task1(shares):
 
     hAngle.put(0)
     readyForImage.put(0)
-
-    pinC1 = pyb.Pin(pyb.Pin.board.PC1, pyb.Pin.OUT_PP)
-    pinA0 = pyb.Pin(pyb.Pin.board.PA0, pyb.Pin.OUT_PP)
-    pinA1 = pyb.Pin(pyb.Pin.board.PA1, pyb.Pin.OUT_PP)
+    
+    pinA10 = pyb.Pin(pyb.Pin.board.PA10, pyb.Pin.OUT_PP)
+    pinB4 = pyb.Pin(pyb.Pin.board.PB4, pyb.Pin.OUT_PP) 
+    pinB5 = pyb.Pin(pyb.Pin.board.PB5, pyb.Pin.OUT_PP)
+    
     pinC6 = pyb.Pin(pyb.Pin.board.PC6, pyb.Pin.OUT_PP) 
     pinC7 = pyb.Pin(pyb.Pin.board.PC7, pyb.Pin.OUT_PP)
-    tim5 = pyb.Timer(5, freq=20000)
+    
+    tim3 = pyb.Timer(3, freq=20000)
+    
     tim8 = pyb.Timer(8, prescaler=1, period=65535)
-    motor = MotorDriver(pinC1, pinA0, pinA1, tim5)
+    
+    motor = MotorDriver(pinA10, pinB4, pinB5, tim3)
+    
     encoder = Encoder(pinC6, pinC7, tim8)
-    ctrl = Controller(encoder, motor, Controller.angleToTicks(hAngle.get()), 0.4, 8000, 4)
+    
+    ctrl = Controller(encoder, motor, 0, 0.04, 0, 0, 8000, float(96)/float(30))
 
     yield
 
     while True:
+        print(state)
         if state == 0:
             # Waiting for start
             if start.get():
@@ -44,20 +53,28 @@ def task1(shares):
             yield
         elif state == 1:
             # Idle
-            if hAngle.get() != ctrl.readAngle():
+            ctrl.set_kp(0.0005)
+            ctrl.set_ki(0.0002)
+            if abs(hAngle.get() - ctrl.readAngle()) > 3:
                 ctrl.setAngle(hAngle.get())
                 readyForImage.put(0)
                 state = 2
-            if not start.get():
+            elif not start.get():
                 readyForImage.put(0)
                 state = 0
             yield
         elif state == 2:
             # Panning
-            ctrl.run()
-            if hAngle.get() == ctrl.readAngle(): # May need to change this
-                readyForImage.put(1)
-                state = 1
+            
+            print(ctrl.run())
+
+            if abs(hAngle.get() - ctrl.readAngle()) <= 3: # May need to change this
+                print("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
+                if start.get():
+                    readyForImage.put(1)
+                    state = 1
+                else:
+                    state = 1
             yield
         else:
             raise ValueError(f"Invalid Task 1 State: {state}")
@@ -75,8 +92,9 @@ def task2(shares):
 
     state = 0
 
-    ser = pyb.USB_VCP()
-
+    # ser = pyb.USB_VCP()
+    pinB10 = pyb.Pin(pyb.Pin.board.PB10, pyb.Pin.IN)
+    
     counter = 0
 
     yield
@@ -84,24 +102,31 @@ def task2(shares):
     while True:
         if state == 0:
             # Waiting
-            if ser.any():
-                try:
-                    line = ser.readline()
-                    if "Begin" in line:
-                        if counter > 25:
-                            start.put(1)
-                            state = 1
-                            counter = 0
-                            yield
-                        else:
-                            counter += 1
-                except:
-                    pass
+#             try:
+#                 line = ser.readline()
+#                 if line == None:
+#                     yield
+#                 elif line.decode() == "Begin\n":
+#                     if counter > 25:
+#                         start.put(1)
+#                         state = 1
+#                         counter = 0
+#                         yield
+#                     else:
+#                         counter += 1
+#             except:
+#                 pass
+            if not pinB10.value():
+                start.put(1)
+                fire.put(0) 
+                state = 1
+                counter = 0
             yield 
         elif state == 1:
             # Start
             if not start.get():
-                ser.flush()
+                #for line in ser.readlines():
+                #   pass
                 state = 0
             yield
         else:
@@ -119,10 +144,10 @@ def task3(shares):
 
     vAngle.put(45)
 
-    pinA10 = pyb.Pin(pyb.Pin.board.PA10, pyb.Pin.OUT_PP)
-    timer1 = pyb.Timer(1, freq=50)
-    t1ch3 = timer1.channel(3, pyb.board.PWM, pin=pinA10)
-    vServo = Servo(t1ch3, angle=vAngle.get(), minAngle=45, maxAngle=60)
+    pinA5 = pyb.Pin(pyb.Pin.board.PA5, pyb.Pin.OUT_PP)
+    timer2 = pyb.Timer(2, freq=50)
+    t2ch1 = timer2.channel(1, pyb.Timer.PWM, pin=pinA5)
+    vServo = Servo(t2ch1, angle=vAngle.get(), minAngle=45, maxAngle=60)
 
     yield
 
@@ -136,6 +161,7 @@ def task3(shares):
             # Normal Operation
             if vAngle.get() != vServo.read():
                 vServo.write(vAngle.get())
+                yield
             if not start.get():
                 state = 0
             yield
@@ -156,7 +182,7 @@ def task4(shares):
 
     pinB8 = pyb.Pin(pyb.Pin.board.PB8, pyb.Pin.ALT, alt=4)
     pinB9 = pyb.Pin(pyb.Pin.board.PB9, pyb.Pin.ALT, alt=4)
-    i2c = pyb.I2C(1, pyb.I2C.CONTROLLER, baudrate=100000)
+    i2c = I2C(1)
     camera = MLX_Cam(i2c)
     image = None
     arrayImage = []
@@ -192,21 +218,35 @@ def task4(shares):
                         except:
                             raise ValueError("Camera returned non-number data")
                     yield
-
-                hNew = hAngle.get() + hMax - 12 # Needs to be calibrated
-                vNew = max(vMax, 16) + 29 # Needs to be calibrated
-
-                if hNew == hAngle.get() and vNew == vAngle.get():
+                
+                hNew = hAngle.get() + hMax - 8 # Needs to be calibrated
+                vNew = max(2*vMax, 16) + 29 # Needs to be calibrated
+                
+                print("-------Next--------")
+                print("Maximum Heat Signature:")
+                print(hMax)
+                print(vMax)
+                print("Pointing at:")
+                print(hAngle.get())
+                print(vAngle.get())
+                print("Where to go:")
+                print(hNew)
+                print(vNew)
+                
+                if abs(hNew - hAngle.get()) <= 3 and abs(vNew - vAngle.get()) <= 3:
                     fire.put(1)
+                    print("Fire!")
                 else:
                     hAngle.put(hNew)
                     vAngle.put(vNew)
-                
                 image = None
                 arrayImage = []
                 vMax = 0
                 hMax = 0
+                state = 0
+                
             yield
+            
         else:
            raise ValueError(f"Invalid Task 4 State: {state}") 
 
@@ -220,9 +260,10 @@ def task5(shares):
 
     state = 0
 
-    pinA8 = pyb.Pin(pyb.Pin.board.PA8, pyb.Pin.OUT_PP)
-    t1ch1 = timer1.channel(1, pyb.board.PWM, pin=pinA8)
-    aServo = Servo(t1ch1, angle=0)
+    pinA9 = pyb.Pin(pyb.Pin.board.PA9, pyb.Pin.OUT_PP)
+    timer1 = pyb.Timer(1, freq=50)
+    t1ch2 = timer1.channel(2, pyb.Timer.PWM, pin=pinA9)
+    aServo = Servo(t1ch2, angle=30)
 
     counter = 0
 
@@ -232,19 +273,24 @@ def task5(shares):
         if state == 0:
             # Waiting for start
             if start.get():
+                counter = 0
                 state = 1
             yield
         elif state == 1:
             # Wait for Fire
-            if fire.get():
-                aServo.write(90)
-                fire.put(0)
-                state = 2
+            if counter < 5:
+                counter += 1
+            else:
+                if fire.get():
+                    aServo.write(90)
+                    fire.put(0)
+                    state = 2
             yield
         elif state == 2:
             # Delay and reset
-            if counter > 10:
-                aServo.write(0)
+            if counter > 5:
+                print("Done!")
+                aServo.write(30)
                 counter = 0
                 start.put(0)
                 hAngle.put(0)
@@ -253,6 +299,7 @@ def task5(shares):
                 state = 0
             else:
                 counter += 1
+            yield
         else:
             raise ValueError(f"Invalid Task 5 State: {state}")
 
@@ -266,11 +313,11 @@ if __name__ == "__main__":
     ]
     
     tasks = [
-        cotask.Task(task1, name="Task 1", priority=2, period=30, shares=shareList),
+        cotask.Task(task1, name="Task 1", priority=2, period=10, shares=shareList),
         cotask.Task(task2, name="Task 2", priority=1, period=200, shares=shareList),
         cotask.Task(task3, name="Task 3", priority=0, period=100, shares=shareList),
-        cotask.Task(task4, name="Task 4", priority=0, period=100, shares=shareList),
-        cotask.Task(task5, name="Task 5", priority=0, period=100, shares=shareList),
+        cotask.Task(task4, name="Task 4", priority=0, period=10, shares=shareList),
+        cotask.Task(task5, name="Task 5", priority=0, period=200, shares=shareList),
     ]
 
     for task in tasks:
