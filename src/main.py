@@ -97,7 +97,6 @@ def task2(shares):
 
     state = 0
 
-    # ser = pyb.USB_VCP()
     pinB10 = pyb.Pin(pyb.Pin.board.PB10, pyb.Pin.IN)
     
     counter = 0
@@ -107,20 +106,6 @@ def task2(shares):
     while True:
         if state == 0:
             # Waiting
-#             try:
-#                 line = ser.readline()
-#                 if line == None:
-#                     yield
-#                 elif line.decode() == "Begin\n":
-#                     if counter > 25:
-#                         start.put(1)
-#                         state = 1
-#                         counter = 0
-#                         yield
-#                     else:
-#                         counter += 1
-#             except:
-#                 pass
             if not pinB10.value():
                 start.put(1)
                 fire.put(0) 
@@ -130,8 +115,6 @@ def task2(shares):
         elif state == 1:
             # Start
             if not start.get():
-                #for line in ser.readlines():
-                #   pass
                 state = 0
             yield
         else:
@@ -216,9 +199,6 @@ def task4(shares):
                 for line in camera.get_csv(image):
                     arrayImage.append(line.split(","))
                     yield
-
-                # Apply blur here
-                #camera.ascii_art(image)
                 for (hIdx, line) in enumerate(arrayImage):
                     if hIdx < 4:
                         continue

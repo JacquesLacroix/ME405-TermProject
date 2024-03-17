@@ -17,6 +17,8 @@ class Controller:
         @param motor The motor driver used to send signals to the motor
         @param setpoint The target position for the motor to turn to
         @param kp The proportional gain coefficient for the controller to use
+        @param ki The integral gain coefficient for the controller to use
+        @param kd The derivative gain coefficient for the controller to use
         @param ticks The number of encoder ticks corresponding to 1 full rotation
         @param gearRatio The gear speed reduction ratio, allowing for angles to be set on the output shaft (Output Gear Teeth/Motor Pinion Teeth).
         A positive ratio should be used for odd numbers of gears, and a negative ratio should be used for even numbers of gears to ensure the output
@@ -79,9 +81,19 @@ class Controller:
         self.kp = kp
         
     def set_ki(self, ki):
+        """!
+        Allows the user to change the controller's integral gain coefficent
+        @param ki The Ki value to set the controller's integral gain to
+        @returns None
+        """
         self.ki = ki
         
     def set_kd(self, kd):
+        """!
+        Allows the user to change the controller's derivative gain coefficent
+        @param kd The Kd value to set the controller's derivative gain to
+        @returns None
+        """
         self.kd = kd
 
     def angleToTicks(self, angle):
