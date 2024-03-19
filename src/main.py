@@ -1,3 +1,8 @@
+"""!
+@file main.py
+This program controls all aspects of the turret and is responsible for software and hardware interaction
+"""
+
 import pyb
 import cotask
 import task_share
@@ -69,7 +74,6 @@ def task1(shares):
             # Panning
             ctrl.run()
             if abs(hAngle.get() - ctrl.readAngle()) <= closeEnough: # May need to change this
-                print("AAAAAAAAAAAAAAAAAAAAA")
                 for i in range(3):
                     ctrl.run()
                 ctrl.motor.set_duty_cycle(0)
@@ -269,7 +273,7 @@ def task5(shares):
                 state = 1
             yield
         elif state == 1:
-            # Wait for Fire
+            # Wait for fire
             if counter < 25:
                 counter += 1
             else:

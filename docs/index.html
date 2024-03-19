@@ -95,37 +95,68 @@ $(function(){initNavTree('index.html',''); initResizable(); });
   <div class="headertitle"><div class="title">ME 405 Term Project </div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="md__r_e_a_d_m_e"></a> </p><h1>ME 405 Term Project</h1>
-<h3>Scott Frizzell &amp; Jacques Lacroix</h3>
-<p><img src="./resource/Turret.png" alt="Picture of Turret" class="inline"/></p>
-<p>This thermal tracking, automated NERF™ turret was designed for the Department of Foamland Security. Its primary purpose is to engage in autonomous defense.</p>
-<p>The turret's design revolves around a pump-action NERF™ gun mounted to a 2-axis mount, allowing it to shoot in nearly any direction. The mechanism uses a brushed DC motor to control the panning motion of the gun, while a servo controls the tilting motion of the gun. A servo is used to actuate the trigger mechanism, and a thermal camera is used for tracking.</p>
-<p><img src="./resource/CAD.png" alt="CAD model of Turret" class="inline"/></p>
-<p>The turret uses a gear train to reduce the motor speed and increase torque to allow the gun to swivel smoothly. Multiple tooth ratios were considered, such as 120/30, but we choose a 96/30 tooth ratio because of manufacturing constraints.</p>
-<p><img src="./resource/CircuitDiagram.png" alt="Circuit Diagram" class="inline"/></p>
-<p>The device is powered by a 12V bench power supply. In our testing, the microcontroller was also be plugged into a computer. However it could be modified to take an input voltage from the bench power supply and run completely autonomously.</p>
-<p>To power the DC motor, it was connected directly to the 12V supply. The servos only needed 5V, however, they drew too much current to simply connect them to the 5V output of the microcontroller. Instead, they were connect to the output of a 5V voltage regulator. The thermal camera was simply connected to the 3.3V output pin of the microcontroller, was it did not draw excess current.</p>
-<p>The device is programmed using a cooperative, priority-based multitasking system, split into 5 tasks: </p><ol>
+<div class="textblock"><p><a class="anchor" id="md_resource_2doxygen__main"></a> </p><h2>Scott Frizzell &amp; Jacques Lacroix</h2>
+<h3>Software Overview</h3>
+<p>The software for this project was divided into 6 main parts: </p><ol>
 <li>
-Controls the panning motion of the turret. </li>
+<code><a class="el" href="main_8py.html" title="This program controls all aspects of the turret and is responsible for software and hardware interact...">main.py</a></code> - The primary program responsible for controlling the rest of the software and hardware interaction </li>
 <li>
-Controls the activation of the turret. </li>
+<code><a class="el" href="controller_8py.html" title="Implements a porportional gain controller for a DC motor with a quadrature encoder.">controller.py</a></code> - A PID motor controller implemented for a brushed DC motor with and encoder </li>
 <li>
-Controls the tilting motion of the turret. </li>
+<code><a class="el" href="motor__driver_8py.html" title="Runs motor in desired direction at provided speed level.">motor_driver.py</a></code> - A motor driver used by the controller to interact with the DC motor </li>
 <li>
-Controls the targeting of the turret. </li>
+<code><a class="el" href="encoder__reader_8py.html" title="Reads absolute position of quadrature encoder.">encoder_reader.py</a></code> - An encoder driver used by the controller to interact with a quadrature encoder </li>
 <li>
-Controls the actuation of the trigger. </li>
+<code><a class="el" href="servo_8py.html" title="Implements a Positional Servo wrapper class.">servo.py</a></code> - A servo driver used to control the other axis of motion and firing the weapon </li>
+<li>
+<code><a class="el" href="mlx__cam_8py.html" title="RAW VERSION This version uses a stripped down MLX90640 driver which produces only raw data,...">mlx_cam.py</a></code> and <code>/mlx90640</code> - A wrapper class used to interact with the MLX thermal camera used for tracking </li>
 </ol>
-<p>Further information of the tasks and dependencies can be found here: <a href="https://jacqueslacroix.github.io/ME405-TermProject">https://jacqueslacroix.github.io/ME405-TermProject</a></p>
-<p>Our primary takeaways from this design process were as follows: </p><ul>
+<h3>Task Overview</h3>
+<p><code><a class="el" href="main_8py.html" title="This program controls all aspects of the turret and is responsible for software and hardware interact...">main.py</a></code> was divided into 5 different tasks, each responsible for controlling a different part of the turret.</p>
+<h4>Task 1</h4>
+<p>Task 1 is responsible for controlling the turrets panning axis using the Controller class. </p><ul>
 <li>
-Tuning the camera parameters to accurately track targets would require additional work </li>
+State 0: Waiting for start - Waits until the start button has been pressed </li>
 <li>
-Tuning DC motor gains (KP, KI, KD) is a challenge, especially due to needing small changes in angle when tracking </li>
+State 1: Idle - Waits for a new angle to be set by Task 4 </li>
 <li>
-Our tracking algorithm would sometimes lock onto a target while they were moving and shoot where they used to be </li>
+State 2: Panning - Runs the controller until it has reached its desired location </li>
 </ul>
+<p><img src="../resource/task1.png" alt="Task 1 Finite State Machine Diagram" class="inline"/></p>
+<h4>Task 2</h4>
+<p>Task 2 is responsible for starting the turret when the button is pressed. </p><ul>
+<li>
+State 0: Waiting - Waits until the start button has been pressed </li>
+<li>
+State 1: Start - Waits for the turret to finish firing </li>
+</ul>
+<p><img src="../resource/task2.png" alt="Task 2 Finite State Machine Diagram" class="inline"/></p>
+<h4>Task 3</h4>
+<p>Task 3 is responsible for controlling the tilting axis using a Servo. </p><ul>
+<li>
+State 0: Waiting for start - Waits until the start button has been pressed </li>
+<li>
+State 1: Normal Operation - Sets the servo to the desired location set by Task 4 </li>
+</ul>
+<p><img src="../resource/task3.png" alt="Task 3 Finite State Machine Diagram" class="inline"/></p>
+<h4>Task 4</h4>
+<p>Task 4 is responsible for interacting with the thermal camera and targeting. </p><ul>
+<li>
+State 0: Waiting for start - Waits until the start button has been pressed </li>
+<li>
+State 1: Normal Operation - Takes an image when ready and sets desired angles to align turret with target </li>
+</ul>
+<p><img src="../resource/task4.png" alt="Task 4 Finite State Machine Diagram" class="inline"/></p>
+<h4>Task 5</h4>
+<p>Task 5 is responsible for actuating the trigger mechanism. </p><ul>
+<li>
+State 0: Waiting for start - Waits until the start button has been pressed </li>
+<li>
+State 1: Wait for fire - Waits for Task 4 to give the fire command </li>
+<li>
+State 2: Delay and reset - Pulls the trigger, waits a second, and resets the turret to run again </li>
+</ul>
+<p><img src="../resource/task5.png" alt="Task 5 Finite State Machine Diagram" class="inline"/> </p>
 </div></div><!-- PageDoc -->
 <a href="doxygen_crawl.html"/>
 </div><!-- contents -->

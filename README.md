@@ -27,6 +27,7 @@ The device is programmed using a cooperative, priority-based multitasking system
 </ol>
 Further information of the tasks and dependencies can be found here: https://jacqueslacroix.github.io/ME405-TermProject
 
+
 Our primary takeaways from this design process were as follows:
 <ul>
     <li>Tuning the camera parameters to accurately track targets would require additional work</li>
